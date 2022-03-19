@@ -155,6 +155,7 @@ void send_error(int fd, char *error) {
     char response[1024] = {0};
     prepare_response(response, error);
     send(fd, response, 1024, 0);
+    close(fd);
 }
 
 enum Operator {
