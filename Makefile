@@ -1,4 +1,6 @@
-CXXFLAGS = -pthread -Wall -Wextra
+CXXFLAGS = -pthread
 
-server: server.cpp
-	$(CXX) $(CXXFLAGS) server.cpp -o server
+server: server.cpp utils.cpp
+	$(CXX) $(CXXFLAGS) server.cpp utils.cpp -o server
+client: client.cpp
+	$(CXX) $(CXXFLAGS) client.cpp -o client

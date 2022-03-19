@@ -366,8 +366,9 @@ bool check_predicates(std::vector<Predicate> &predicates, std::vector<std::strin
 
 void worker(int fd) {
     char buffer[1024] = {0};
-    int size = read(fd, buffer, 1024);
+    read(fd, buffer, 1024);
     int cnt1 = 0, cnt2 = 0;
+    // printf("%s\n", buffer);
     while (buffer[cnt1] != ' ') {
         cnt1++;
     }
@@ -379,11 +380,29 @@ void worker(int fd) {
     // std::cout << s << std::endl;
 
     int cnt = 0;
-    // find first '='
-    while (cnt < s.size() && s[cnt] != '=') {
+    // find first '?'
+    while (cnt < s.size() && s[cnt] != '?') {
         cnt++;
     }
     cnt++;
+    while (cnt < s.size() && s[cnt] == ' ') {
+        cnt++;
+    }
+    // then should be query=
+    if (cnt + 5 >= s.size()) {
+        send_error(fd, "wrong format, expected /?query=<query string>");
+        return;
+    }
+    if (s[cnt] != 'q' ||
+        s[cnt + 1] != 'u' ||
+        s[cnt + 2] != 'e' ||
+        s[cnt + 3] != 'r' ||
+        s[cnt + 4] != 'y' ||
+        s[cnt + 5] != '=') {
+        send_error(fd, "wrong format, expected /?query=<query string>");
+        return;
+    }
+    cnt += 6;
     if (cnt >= s.size()) {
         // can't find params, return with error
         send_error(fd, "failed to get params");
@@ -441,6 +460,7 @@ void worker(int fd) {
     // std::cout << strlen(buf) << " " << body.size() << std::endl;
     send(fd, buf, strlen(buf), 0);
     free(buf);
+    close(fd);
 }
 
 
@@ -488,6 +508,8 @@ int main(void) {
         std::cout << "listen";
         exit(EXIT_FAILURE);
     }
+
+    std::cout << std::endl << "server listening" << std::endl;
     while (1) {
         if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
             continue;
