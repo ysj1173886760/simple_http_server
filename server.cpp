@@ -19,7 +19,36 @@
 #include <cstdlib>
 #include <netinet/in.h>
 #include <cstring>
+#include <queue>
+#include <condition_variable>
 #include "utils.cpp"
+
+const int workers = 6;
+
+class Queue {
+public:
+    std::queue<int> _q;
+    std::condition_variable _consumer;
+    std::mutex _mu;
+
+    Queue() {}
+
+    void push(int fd) {
+        std::unique_lock<std::mutex> lock_guard(_mu);
+        _q.push(fd);
+        _consumer.notify_one();
+    }
+
+    int pop() {
+        std::unique_lock<std::mutex> lock_guard(_mu);
+        while (_q.empty()) {
+            _consumer.wait(lock_guard, [&]() { return !_q.empty(); });
+        }
+        int fd = _q.front();
+        _q.pop();
+        return fd;
+    }
+} AQueue;
 
 std::vector<std::vector<std::string>> _database;
 
@@ -244,7 +273,7 @@ char *parse_predicate(std::vector<std::vector<Predicate>> &predicates, const std
                 cur++;
             }
         }
-        std::cout << "target is : " << target << std::endl;
+        // std::cout << "target is : " << target << std::endl;
 
         if (cnt != 2) {
             return "wrong predicate format, expected \"";
@@ -334,6 +363,7 @@ bool check_operation(Predicate &predicate, const std::string &column) {
         return contains(column, predicate.target);
         break;
     }
+    return false;
 }
 
 int get_column(const std::string &column) {
@@ -425,7 +455,6 @@ void worker(int fd) {
     for (int i = 0; i < predicates.size(); i++) {
         for (int j = 0; j < predicates[i].size(); j++) {
             if (predicates[i][j].column.size() > 0 && !check_valid_column(predicates[i][j].column)) {
-                std::cout << predicates[i][j].column << std::endl;
                 send_error(fd, "invalid column name");
                 return;
             }
@@ -463,6 +492,12 @@ void worker(int fd) {
     close(fd);
 }
 
+void worker_thread() {
+    while (1) {
+        int fd = AQueue.pop();
+        worker(fd);
+    }
+}
 
 int main(void) {
     int server_fd, new_socket;
@@ -509,13 +544,18 @@ int main(void) {
         exit(EXIT_FAILURE);
     }
 
+    // spawn worker thread
+    std::vector<std::thread> list;
+    for (int i = 0; i < workers; i++) {
+        list.emplace_back(std::thread(worker_thread));
+    }
+
     std::cout << std::endl << "server listening" << std::endl;
     while (1) {
         if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
             continue;
         }
-        std::thread t(worker, new_socket);
-        t.detach();
+        AQueue.push(new_socket);
     }
 
     return 0;
