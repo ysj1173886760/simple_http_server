@@ -499,7 +499,7 @@ void worker_thread() {
     }
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
     int server_fd, new_socket;
     struct sockaddr_in address;
     int opt = 1;
@@ -507,6 +507,9 @@ int main(void) {
     int port = 9527;
 
     std::string filename = "data.csv";
+    if (argc > 1) {
+        filename = std::string(argv[1], argv[1] + strlen(argv[1]));
+    }
 
     std::ifstream reader(filename, std::ios::in);
     // read data into memory
